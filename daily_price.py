@@ -19,11 +19,11 @@ df = pd.DataFrame(kline_dict)
 print(df)
 
 # 导出为Excel文件
-df.to_excel('比亚迪2024年至今股价.xlsx', index=False)
-print("数据已导出到 比亚迪2024年至今股价.xlsx 文件")
+df.to_excel('比亚迪2023年至今股价.xlsx', index=False)
+print("数据已导出到 比亚迪2023年至今股价.xlsx 文件")
 
 # 读取Excel文件数据
-data = pd.read_excel('比亚迪2024年至今股价.xlsx')
+data = pd.read_excel('比亚迪2023年至今股价.xlsx')
 
 # 确保日期列是datetime类型
 data['日期'] = pd.to_datetime(data['日期'])

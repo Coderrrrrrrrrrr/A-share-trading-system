@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib import ticker
 import matplotlib.font_manager as fm
+from scipy.signal import argrelextrema
+import numpy as np
 
 # 设置中文字体支持
 plt.rcParams['font.sans-serif'] = ['SimHei', 'Arial Unicode MS', 'DejaVu Sans']
@@ -46,6 +48,11 @@ for col in profit_columns:
 # 确保日期列是datetime类型
 data['日期'] = pd.to_datetime(data['日期'])
 
+# ===== 阶段性高点低点检测参数 =====
+# 可手动调整的参数，用于控制极值检测的敏感度
+PEAK_VALLEY_WINDOW = 30  # 窗口大小，用于确定局部极值，值越大检测到的极值点越少
+# ================================
+
 # 创建图形和子图
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
 
@@ -59,6 +66,45 @@ ax1.grid(True, alpha=0.3)
 ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
 ax1.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
 plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45)
+
+# 查找并标记阶段性高点和低点
+# 使用scipy寻找局部极值点
+print(f"当前使用的窗口大小: {PEAK_VALLEY_WINDOW}")
+local_max_indices = argrelextrema(data['收盘'].values, np.greater, order=PEAK_VALLEY_WINDOW)[0]
+local_min_indices = argrelextrema(data['收盘'].values, np.less, order=PEAK_VALLEY_WINDOW)[0]
+
+# 打印高点和低点信息到控制台
+print("阶段性高点:")
+high_points = []
+for idx in local_max_indices:
+    date = data['日期'].iloc[idx]
+    price = data['收盘'].iloc[idx]
+    high_points.append((date, price))
+    print(f"日期: {date.strftime('%Y-%m-%d')}, 价格: {price:.2f}")
+    ax1.plot(date, price, 'ro', markersize=8)  # 在图上标记红色圆点
+    ax1.annotate(f'{price:.2f}', 
+                xy=(date, price),
+                xytext=(0, 10),
+                textcoords='offset points',
+                ha='center',
+                fontsize=8,
+                bbox=dict(boxstyle='round,pad=0.2', facecolor='red', alpha=0.7))
+
+print("\n阶段性低点:")
+low_points = []
+for idx in local_min_indices:
+    date = data['日期'].iloc[idx]
+    price = data['收盘'].iloc[idx]
+    low_points.append((date, price))
+    print(f"日期: {date.strftime('%Y-%m-%d')}, 价格: {price:.2f}")
+    ax1.plot(date, price, 'go', markersize=8)  # 在图上标记绿色圆点
+    ax1.annotate(f'{price:.2f}', 
+                xy=(date, price),
+                xytext=(0, -15),
+                textcoords='offset points',
+                ha='center',
+                fontsize=8,
+                bbox=dict(boxstyle='round,pad=0.2', facecolor='green', alpha=0.7))
 
 # 添加一个函数来查找下一个最近的交易日
 def find_next_trading_date(target_date, data):
@@ -79,7 +125,8 @@ for annotation in profit_annotations:
     actual_date = find_next_trading_date(target_date, data)
     trading_data = data[data['日期'] == actual_date]
     if not trading_data.empty:
-        close_price = trading_data['收盘'].values[0]
+        index = trading_data.index[0]
+        close_price = float(trading_data.at[index, '收盘'])
         ax1.annotate(annotation['label'],
                     xy=(actual_date, close_price),
                     xytext=(0, 30),  # 统一偏移量
@@ -110,7 +157,8 @@ for annotation in profit_annotations:
     actual_date = find_next_trading_date(target_date, data)
     trading_data = data[data['日期'] == actual_date]
     if not trading_data.empty:
-        change_percent = trading_data['涨跌幅'].values[0]
+        index = trading_data.index[0]
+        change_percent = float(trading_data.at[index, '涨跌幅'])
         ax2.annotate(annotation['label'],
                     xy=(actual_date, change_percent),
                     xytext=(0, 30),
