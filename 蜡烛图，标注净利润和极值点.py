@@ -1,18 +1,31 @@
-import efinance as ef
+import mplfinance.original_flavor as mpf
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from matplotlib import ticker
-import matplotlib.font_manager as fm
 from scipy.signal import argrelextrema
 import numpy as np
+
 
 # 设置中文字体支持
 plt.rcParams['font.sans-serif'] = ['SimHei', 'Arial Unicode MS', 'DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
 
-# 读取Excel文件数据
-data = pd.read_excel('比亚迪2024年至今股价.xlsx')
+# 1. 从xlsx文件中提取比亚迪股票数据
+df = pd.read_excel('比亚迪2023年至今股价.xlsx')
+
+# 重命名列以匹配英文格式
+data = df.rename(columns={
+    '日期': 'Date',
+    '开盘': 'Open',
+    '最高': 'High',
+    '最低': 'Low',
+    '收盘': 'Close',
+    '成交量': 'Volume'
+})
+
+# 设置日期为索引
+data['Date'] = pd.to_datetime(data['Date'])
+data.set_index('Date', inplace=True)
 
 # 读取财务数据
 financial_data = pd.read_excel('./company_performance_pivot.xlsx')
@@ -45,45 +58,60 @@ for col in profit_columns:
             'label': f'净利润{byd_financial[col]/100000000:.2f}亿'
         })
 
-# 确保日期列是datetime类型
-data['日期'] = pd.to_datetime(data['日期'])
-
 # ===== 阶段性高点低点检测参数 =====
 # 可手动调整的参数，用于控制极值检测的敏感度
 PEAK_VALLEY_WINDOW = 30  # 窗口大小，用于确定局部极值，值越大检测到的极值点越少
 # ================================
 
-# 创建图形和子图
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+# 增加图形尺寸以适应更宽的蜡烛图
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 8), gridspec_kw={"height_ratios": [3, 1]})
 
-# 绘制收盘价图表
-ax1.plot(data['日期'], data['收盘'], color='red', linewidth=2)
-ax1.set_title('比亚迪2024年至今收盘价走势', fontsize=16)
-ax1.set_ylabel('收盘价 (元)', fontsize=12)
+# 准备OHLC数据，需要将日期转换为数字格式，同时调整数据点间距以适应更宽的蜡烛图
+ohlc_data = []
+spacing_factor = 3  # 增加数据点间距以避免重叠
+date_nums = []
+for i in range(len(data)):
+    date_num = mdates.date2num(data.index[i]) + i * (spacing_factor - 1)  # 调整日期位置以增加间距
+    date_nums.append(date_num)
+    open_price = data['Open'].iloc[i]
+    high_price = data['High'].iloc[i]
+    low_price = data['Low'].iloc[i]
+    close_price = data['Close'].iloc[i]
+    ohlc_data.append([date_num, open_price, high_price, low_price, close_price])
+
+# 上层：蜡烛图
+mpf.candlestick_ohlc(
+    ax1, 
+    ohlc_data,  # 格式：[时间戳, O, H, L, C]
+    width=2.6,  # 蜡烛宽度
+    colorup="red",  # 上涨（收盘价>开盘价）颜色
+    colordown="green",  # 下跌颜色
+    alpha=0.8  # 透明度
+)
+ax1.set_title("比亚迪2023年至今蜡烛图", fontsize=14)
 ax1.grid(True, alpha=0.3)
 
 # 格式化x轴日期显示
 ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-ax1.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
-plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45)
+ax1.xaxis.set_major_locator(mdates.MonthLocator())
 
 # 查找并标记阶段性高点和低点
 # 使用scipy寻找局部极值点
 print(f"当前使用的窗口大小: {PEAK_VALLEY_WINDOW}")
-local_max_indices = argrelextrema(data['收盘'].values, np.greater, order=PEAK_VALLEY_WINDOW)[0]
-local_min_indices = argrelextrema(data['收盘'].values, np.less, order=PEAK_VALLEY_WINDOW)[0]
+local_max_indices = argrelextrema(data['Close'].values, np.greater, order=PEAK_VALLEY_WINDOW)[0]
+local_min_indices = argrelextrema(data['Close'].values, np.less, order=PEAK_VALLEY_WINDOW)[0]
 
 # 打印高点和低点信息到控制台
 print("阶段性高点:")
 high_points = []
 for idx in local_max_indices:
-    date = data['日期'].iloc[idx]
-    price = data['收盘'].iloc[idx]
+    date = data.index[idx]
+    price = data['Close'].iloc[idx]
     high_points.append((date, price))
-    print(f"日期: {date.strftime('%Y-%m-%d')}, 价格: {price:.2f}")
-    ax1.plot(date, price, 'ro', markersize=8)  # 在图上标记红色圆点
+    print(f"日期: {pd.to_datetime(date).strftime('%Y-%m-%d')}, 价格: {price:.2f}")
+    ax1.plot(date_nums[idx], price, 'ro', markersize=8)  # 在图上标记红色圆点
     ax1.annotate(f'{price:.2f}', 
-                xy=(date, price),
+                xy=(date_nums[idx], price),
                 xytext=(0, 10),
                 textcoords='offset points',
                 ha='center',
@@ -93,13 +121,13 @@ for idx in local_max_indices:
 print("\n阶段性低点:")
 low_points = []
 for idx in local_min_indices:
-    date = data['日期'].iloc[idx]
-    price = data['收盘'].iloc[idx]
+    date = data.index[idx]
+    price = data['Close'].iloc[idx]
     low_points.append((date, price))
-    print(f"日期: {date.strftime('%Y-%m-%d')}, 价格: {price:.2f}")
-    ax1.plot(date, price, 'go', markersize=8)  # 在图上标记绿色圆点
+    print(f"日期: {pd.to_datetime(date).strftime('%Y-%m-%d')}, 价格: {price:.2f}")
+    ax1.plot(date_nums[idx], price, 'go', markersize=8)  # 在图上标记绿色圆点
     ax1.annotate(f'{price:.2f}', 
-                xy=(date, price),
+                xy=(date_nums[idx], price),
                 xytext=(0, -15),
                 textcoords='offset points',
                 ha='center',
@@ -110,25 +138,25 @@ for idx in local_min_indices:
 def find_next_trading_date(target_date, data):
     """查找下一个最近的交易日"""
     # 筛选大于等于目标日期的数据
-    future_data = data[data['日期'] >= target_date]
+    future_data = data[data.index >= target_date]
     if not future_data.empty:
         # 返回最近的交易日
-        return future_data.iloc[0]['日期']
+        return future_data.index[0]
     else:
         # 如果没有找到，返回原始日期
         return target_date
 
-# 在收盘价图表上添加注释
+# 在K线图上添加注释
 for annotation in profit_annotations:
     target_date = annotation['date']
     # 查找下一个最近的交易日
     actual_date = find_next_trading_date(target_date, data)
-    trading_data = data[data['日期'] == actual_date]
-    if not trading_data.empty:
-        index = trading_data.index[0]
-        close_price = float(trading_data.at[index, '收盘'])
+    # 获取实际日期在数据中的索引
+    if actual_date in data.index:
+        idx = data.index.get_loc(actual_date)
+        close_price = data['Close'].loc[actual_date]
         ax1.annotate(annotation['label'],
-                    xy=(actual_date, close_price),
+                    xy=(date_nums[idx], close_price),
                     xytext=(0, 30),  # 统一偏移量
                     textcoords='offset points',
                     arrowprops=dict(arrowstyle='->', color='black', lw=0.8),
@@ -136,40 +164,20 @@ for annotation in profit_annotations:
                     ha='center',
                     bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
 
-
-# 绘制涨跌幅图表
-ax2.plot(data['日期'], data['涨跌幅'], color='blue', linewidth=2)
-ax2.set_title('比亚迪2024年至今涨跌幅', fontsize=16)
-ax2.set_xlabel('日期', fontsize=12)
-ax2.set_ylabel('涨跌幅 (%)', fontsize=12)
+# 下层：成交量
+# 调整成交量图的宽度以匹配K线图的宽度，并使用相同的x轴位置
+ax2.bar(date_nums, data["Volume"], 
+        width=2.6, 
+        color=data.apply(lambda x: "red" if x.Close > x.Open else "green", axis=1))
+ax2.set_ylabel("Volume", fontsize=12)
 ax2.grid(True, alpha=0.3)
-ax2.axhline(y=0, color='black', linewidth=0.5)
 
-# 格式化x轴日期显示
+# 格式化x轴日期显示，与上图保持一致
 ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-ax2.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
+ax2.xaxis.set_major_locator(mdates.MonthLocator())
+
+plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45)
 plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45)
 
-# 在涨跌幅图表上添加注释
-for annotation in profit_annotations:
-    target_date = annotation['date']
-    # 查找下一个最近的交易日
-    actual_date = find_next_trading_date(target_date, data)
-    trading_data = data[data['日期'] == actual_date]
-    if not trading_data.empty:
-        index = trading_data.index[0]
-        change_percent = float(trading_data.at[index, '涨跌幅'])
-        ax2.annotate(annotation['label'],
-                    xy=(actual_date, change_percent),
-                    xytext=(0, 30),
-                    textcoords='offset points',
-                    arrowprops=dict(arrowstyle='->', color='black', lw=0.8),
-                    fontsize=9,
-                    ha='center',
-                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
-
-# 自动调整布局
 plt.tight_layout()
-
-# 显示图表
 plt.show()
