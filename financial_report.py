@@ -1,9 +1,12 @@
 import efinance as ef
 import pandas as pd
 from datetime import datetime
+import os
 
 class Report_Collect():
-    def __init__(self):
+    def __init__(self, data_dir="下载数据"):
+        self.data_dir = data_dir
+        os.makedirs(self.data_dir, exist_ok=True)
         self.get_financial_report()
 
     # 定义需要获取数据的日期列表
@@ -92,8 +95,9 @@ class Report_Collect():
             pivot_df = pivot_df.reset_index()
 
             # 导出为Excel文件
-            pivot_df.to_excel('company_performance_pivot.xlsx', index=False)
-            print("数据已导出到 company_performance_pivot.xlsx 文件")
+            filepath = os.path.join(self.data_dir, 'company_performance_pivot.xlsx')
+            pivot_df.to_excel(filepath, index=False)
+            print(f"数据已导出到 {filepath} 文件")
         else:
             print("缺少必要的列（股票代码或日期），无法生成透视表")
 
