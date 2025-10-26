@@ -1,0 +1,25 @@
+{
+  "name": "autohome-sales-scraper",
+  "version": "1.0.0",
+  "description": "汽车之家品牌销量数据抓取工具",
+  "main": "autohome_brands_sales.js",
+  "scripts": {
+    "start": "node autohome_brands_sales.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "autohome",
+    "scraper",
+    "puppeteer",
+    "car-sales"
+  ],
+  "author": "Quantitative Trading Team",
+  "license": "MIT",
+  "dependencies": {
+    "puppeteer": "^21.0.0",
+    "xlsx": "^0.18.5"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
