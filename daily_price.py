@@ -6,6 +6,7 @@ from matplotlib import ticker
 import matplotlib.font_manager as fm
 from datetime import datetime
 import os
+import re
 
 def get_daily_price(stock_code='002594', stock_name='比亚迪', begin_date='20240101', data_dir='下载数据'):
     """获取指定股票的每日价格数据并保存到Excel文件"""
@@ -13,10 +14,13 @@ def get_daily_price(stock_code='002594', stock_name='比亚迪', begin_date='202
     plt.rcParams['font.sans-serif'] = ['SimHei', 'Arial Unicode MS', 'DejaVu Sans']
     plt.rcParams['axes.unicode_minus'] = False
     
+    # 清理股票名称中的特殊字符
+    cleaned_stock_name = re.sub(r'[\\/:*?"<>|]', '', stock_name)
+    
     end_date = datetime.now().strftime('%Y%m%d')
     
     # 检查目标文件是否已存在
-    filepath = os.path.join(data_dir, f'{stock_name}{begin_date}至{end_date}股价.xlsx')
+    filepath = os.path.join(data_dir, f'{cleaned_stock_name}{begin_date}至{end_date}股价.xlsx')
     if os.path.exists(filepath):
         print(f"文件 {filepath} 已存在，跳过数据获取")
         return pd.read_excel(filepath)
