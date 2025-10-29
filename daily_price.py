@@ -48,3 +48,29 @@ def get_daily_price(stock_code='002594', stock_name='比亚迪', begin_date='202
     print(f"数据已导出到 {filepath} 文件")
     
     return df
+
+
+def get_latest_price():
+    """获取指定股票的每日价格数据并保存到Excel文件"""
+    # 设置中文字体支持
+    plt.rcParams['font.sans-serif'] = ['SimHei', 'Arial Unicode MS', 'DejaVu Sans']
+    plt.rcParams['axes.unicode_minus'] = False
+        
+    end_date = datetime.now().strftime('%Y%m%d')
+    
+    # 获取股票价格数据
+    kline_dict = ef.stock.get_realtime_quotes()
+
+    df = pd.DataFrame(kline_dict)
+    print(df)
+
+    filepath = os.path.join('下载数据','沪深京所有股票价格', f'沪深京{end_date}最新股价.xlsx')
+    
+    # 导出为Excel文件
+    df.to_excel(filepath, index=False)
+    print(f"数据已导出到 {filepath} 文件")
+    
+    return df
+
+if __name__ == '__main__':
+    get_latest_price()

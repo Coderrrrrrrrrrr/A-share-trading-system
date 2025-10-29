@@ -4,6 +4,7 @@ import re
 import pymysql
 from sqlalchemy import create_engine
 import warnings
+from datetime import datetime
 
 warnings.filterwarnings('ignore')
 
@@ -207,11 +208,13 @@ def import_excel_files_to_mysql():
         print("请检查数据库连接配置")
 
 
+
 if __name__ == "__main__":
     # 创建数据库和表
     if create_database_and_table():
         # 导入Excel文件到MySQL
         import_excel_files_to_mysql()
+
         
     else:
         print("数据库初始化失败，程序退出")
