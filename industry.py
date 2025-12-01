@@ -23,7 +23,7 @@ class AShareIndex:
 
     def get_a_share_index(self):
         # 1. 初始化Tushare接口（替换为你的token）
-        ts.set_token("c2989fb9b4c3d466bf144c75b1ce0ece1c33f59443cf2ea90e51629c")
+        ts.set_token("")
         pro = ts.pro_api()
 
         # 2. 获取A股所有指数列表（接口：index_basic）
