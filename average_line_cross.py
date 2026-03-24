@@ -103,7 +103,7 @@ def find_average_line_cross_stocks(stock_name=None, stock_code=None):
         
         # 查询指定股票的所有历史数据
         query = """
-        SELECT trade_date, open_price, high_price, low_price, close_price, volume
+        SELECT trade_date, open_price, high_price, low_price, close_price, volume, turnover_rate
         FROM stock_data 
         WHERE stock_code = %s
         ORDER BY trade_date
@@ -124,7 +124,8 @@ def find_average_line_cross_stocks(stock_name=None, stock_code=None):
             'high_price': 'High',
             'low_price': 'Low',
             'close_price': 'Close',
-            'volume': 'Volume'
+            'volume': 'Volume',
+            'turnover_rate': 'TurnoverRate'
         }, inplace=True)
         
         # 计算移动平均线
@@ -135,11 +136,14 @@ def find_average_line_cross_stocks(stock_name=None, stock_code=None):
         # 计算成交量的20日移动平均线
         df['Volume_MA20'] = df['Volume'].rolling(window=20).mean()
         
+        # 计算换手率的20日移动平均线
+        df['TurnoverRate_MA20'] = df['TurnoverRate'].rolling(window=20).mean()
+        
         # 删除包含NaN的行（由于计算移动平均线导致的前几行缺失值）
         df.dropna(inplace=True)
         
         # 增加图形尺寸以适应更宽的蜡烛图
-        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(16, 10), gridspec_kw={"height_ratios": [3, 1, 1]})
+        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(16, 12), gridspec_kw={"height_ratios": [3, 1, 1, 1]})
         
         # 准备OHLC数据，需要将日期转换为数字格式
         ohlc_data = []
@@ -229,19 +233,22 @@ def find_average_line_cross_stocks(stock_name=None, stock_code=None):
             ax3.grid(True, alpha=0.3)
             ax3.set_title("股东人数变化", fontsize=12)
             
-            # 从efinance获取最新的户均持股信息
+            # 从Excel文件中获取最新的户均持股信息
             latest_holder_info = None
             try:
-                holder_df = ef.stock.get_latest_holder_number()
+                holder_df = pd.read_excel(os.path.join("下载数据", '股东人数统计.xlsx'))
                 # 根据股票代码或股票名称查找对应的户均持股信息
                 if stock_code:
-                    latest_holder_info = holder_df[holder_df['股票代码'] == stock_code]
+                    # 注意：Excel中的股票代码是数字，而数据库中的是字符串
+                    latest_holder_info = holder_df[holder_df['股票代码'] == int(stock_code)]
                 if latest_holder_info is None or latest_holder_info.empty:
                     latest_holder_info = holder_df[holder_df['股票名称'] == stock_name]
                     
                 if not latest_holder_info.empty:
-                    avg_shares = latest_holder_info['户均持股数量'].iloc[0]
-                    avg_value = latest_holder_info['户均持股市值'].iloc[0]
+                    # 获取最新的股东人数数据（最后一列）
+                    last_column = holder_df.columns[-1]
+                    avg_shares = latest_holder_info.iloc[0][last_column]  # 这里假设最后一列是最新数据
+                    avg_value = "N/A"  # Excel中可能没有这个数据
                     
                     # 标注最新的户均持股信息
                     latest_date = aligned_data.index[-1]
@@ -251,7 +258,7 @@ def find_average_line_cross_stocks(stock_name=None, stock_code=None):
                         latest_date_dt = pd.to_datetime(latest_date)
                         latest_date_str = latest_date_dt.strftime('%Y-%m-%d')
                         latest_date_num = mdates.date2num(latest_date_dt)
-                        ax3.annotate(f'最新({latest_date_str}): {latest_holder_count:.0f}人\n户均持股:{avg_shares:.0f}股\n户均市值:{avg_value:.0f}元', 
+                        ax3.annotate(f'最新({latest_date_str}): {latest_holder_count:.0f}人\n户均持股:{avg_shares:.0f}股', 
                                     xy=(latest_date_num, latest_holder_count),
                                     xytext=(10, 0),
                                     textcoords='offset points',
@@ -265,10 +272,45 @@ def find_average_line_cross_stocks(stock_name=None, stock_code=None):
             ax3.xaxis.set_major_locator(mdates.DayLocator(bymonthday=[1, 10, 20]))
         else:
             ax3.set_visible(False)  # 如果没有股东数据，则隐藏该子图
+            
+        # 最下层：换手率
+        # 绘制换手率曲线
+        ax4.plot(date_nums, df['TurnoverRate'], color='blue', linewidth=1.5, label='换手率')
+        # 绘制20日均线
+        ax4.plot(date_nums, df['TurnoverRate_MA20'], color='orange', linewidth=1.5, label='20日均线')
+        # 绘制水平虚线标记3的位置
+        ax4.axhline(y=3, color='red', linestyle='--', linewidth=1, label='3%基准线')
+        ax4.set_ylabel("换手率(%)", fontsize=12)
+        ax4.grid(True, alpha=0.3)
+        ax4.set_title("换手率变化", fontsize=12)
+        ax4.legend()
+        
+        # 标注最新交易日的换手率情况和当日的20日均线数值
+        if not df.empty:
+            latest_date = df.index[-1]
+            latest_turnover_rate = df['TurnoverRate'].iloc[-1]
+            latest_ma20 = df['TurnoverRate_MA20'].iloc[-1]
+            
+            if not pd.isna(latest_turnover_rate) and not pd.isna(latest_ma20):
+                latest_date_dt = pd.to_datetime(latest_date)
+                latest_date_str = latest_date_dt.strftime('%Y-%m-%d')
+                latest_date_num = mdates.date2num(latest_date_dt)
+                
+                ax4.annotate(f'最新({latest_date_str}): {latest_turnover_rate:.2f}%\n20日均线: {latest_ma20:.2f}%', 
+                            xy=(latest_date_num, latest_turnover_rate),
+                            xytext=(10, 0),
+                            textcoords='offset points',
+                            fontsize=10,
+                            bbox=dict(boxstyle='round,pad=0.3', facecolor='yellow', alpha=0.7))
+        
+        # 格式化x轴日期显示
+        ax4.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+        ax4.xaxis.set_major_locator(mdates.DayLocator(bymonthday=[1, 10, 20]))  # 只显示每月1号、10号、20号
         
         plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45)
         plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45)
         plt.setp(ax3.xaxis.get_majorticklabels(), rotation=45)
+        plt.setp(ax4.xaxis.get_majorticklabels(), rotation=45)
         
         plt.tight_layout()
         plt.show()
@@ -278,6 +320,6 @@ def find_average_line_cross_stocks(stock_name=None, stock_code=None):
 
 if __name__ == "__main__":
     # 可以只提供股票名称
-    find_average_line_cross_stocks(stock_name='中宠股份')
+    find_average_line_cross_stocks(stock_name='中兴通讯')
     # 或者只提供股票代码
     # find_average_line_cross_stocks(stock_code='000001')
